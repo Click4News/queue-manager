@@ -46,7 +46,7 @@ def fetch_and_store_news(mongo_client, city_name):
     except Exception as ex:
         print(f"Failed for city : {city}\n\nError: {ex}")
 
-def store_news(mongo_client, news, which_city: str):
+def store_news(mongo_client, news, which_city: str, insert: bool = True):
     if 'articles' in news and 'results' in news['articles']:
         articles = news['articles']['results']
         if not articles:
@@ -71,10 +71,10 @@ def store_news(mongo_client, news, which_city: str):
             article['_id'] = str(ObjectId())
             article['geoJson'] = geoJson
 
-    
-    db = mongo_client['newsdata']
-    collection = db['articles']
-    collection.insert_many(articles)
+    if insert:
+        db = mongo_client['newsdata']
+        collection = db['articles']
+        collection.insert_many(articles)
     return True
 
 

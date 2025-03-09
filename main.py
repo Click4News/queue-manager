@@ -37,7 +37,7 @@ def get_city_news(city: str):
 @app.get("/get_and_store_news/{city}")
 def get_city_news(city: str):
     news = make_api_call(city)
-    store_news(local_client, news, city)
+    store_news(local_client, news, city, insert=False)
     return jsonable_encoder(news)
 
 @app.get("/just_get_news/{city}")

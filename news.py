@@ -6,7 +6,7 @@ from constants import atlas_pswd, MONGO_ATLAS_URI
 from api_call import make_api_call
 from bson import ObjectId
 
-from geopy.geocoders import Nominatim
+from geopy.geocoders import Nominatim 
 
 geolocator = Nominatim(user_agent="Click4News")
 
@@ -68,13 +68,14 @@ def store_news(mongo_client, news, which_city: str, insert: bool = True):
 
         for article in articles:
             article['city'] = which_city
-            article['_id'] = str(ObjectId())
+            article['id'] = str(ObjectId())
             article['geoJson'] = geoJson
 
     if insert:
         db = mongo_client['newsdata']
         collection = db['articles']
         collection.insert_many(articles)
+    
     return True
 
 

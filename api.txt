@@ -1,0 +1,7 @@
+NewsDataAPI - https://newsdata.io/documentation
+
+https://newsdata.io/api/1/
+
+latest?apikey=pub_69745567d252a8329d6c578fb65e7850c1999&q=pizza
+
+https://newsdata.io/api/1/archive?apikey=pub_69745567d252a8329d6c578fb65e7850c1999&q=example&language=en&from_date=2023-01-19&to_date=2023-01-25

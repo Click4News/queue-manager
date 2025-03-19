@@ -10,7 +10,8 @@ from pymongo import MongoClient
 from constants import MONGO_ATLAS_URI
 from api_call import make_api_call
 from bson import ObjectId
-from kafka_producer import *
+# from kafka_producer import *
+from sqs_producer import *
 
 from geopy.geocoders import Nominatim 
 
@@ -66,6 +67,11 @@ def get_city_news(city: str):
         article['city'] = city
         article['id'] = str(ObjectId())
         article['geoJson'] = geoJson
-    create_topic()
-    publish_messages(articles)
+    print(articles[0])
+    attributes = {
+        "priority": "high",
+        "source": "inventory_system",
+        "timestamp": "2025-03-18T12:00:00Z"
+    }
+    push_message_to_sqs('test-queue', articles)
     return news

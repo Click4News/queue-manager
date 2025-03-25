@@ -9,6 +9,13 @@ from sample_read import read
 from pymongo import MongoClient
 from constants import MONGO_ATLAS_URI
 from api_call import make_api_call
+from bson import ObjectId
+# from kafka_producer import *
+from sqs_producer import *
+
+from geopy.geocoders import Nominatim 
+
+geolocator = Nominatim(user_agent="Click4News")
 
 atlas_client = MongoClient(MONGO_ATLAS_URI)
 local_client = MongoClient('localhost', 27017)
@@ -43,4 +50,28 @@ def get_city_news(city: str):
 @app.get("/just_get_news/{city}")
 def get_city_news(city: str):
     news = make_api_call(city)
+    articles = news['articles']['results']
+    location = geolocator.geocode(f"{city}")
+    lat, long = location.latitude, location.longitude
+    geoJson = {
+        "type": "Location",
+        "geometry" : {
+            "type": "Point",
+            "coordinates": [lat, long]
+        },
+        "properties": {
+            "name": f"{city}"
+        }
+    }
+    for article in articles:
+        article['city'] = city
+        article['id'] = str(ObjectId())
+        article['geoJson'] = geoJson
+    print(articles[0])
+    attributes = {
+        "priority": "high",
+        "source": "inventory_system",
+        "timestamp": "2025-03-18T12:00:00Z"
+    }
+    push_message_to_sqs('test-queue', articles)
     return news

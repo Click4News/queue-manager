@@ -20,7 +20,7 @@ def get_queue_url(queue_name, create_if_not_exists=True):
     str: The queue URL
     """
     # Initialize SQS client with specific region
-    region_name = 'us-east-2'  # Replace with your actual region like 'us-east-1'
+    region_name = 'us-east-2'  
     sqs = boto3.client('sqs', region_name=region_name)
     try:
         response = sqs.get_queue_url(QueueName=queue_name)

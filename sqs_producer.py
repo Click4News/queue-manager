@@ -99,6 +99,7 @@ if __name__ == "__main__":
     message = {
         "id": 123456,
         "action": "process_order",
+        "url": "https://arstechnica.com/gadgets/2025/03/apple-updates-all-its-operating-systems-brings-apple-intelligence-to-vision-pro/",
         "data": {
             "customer_id": "C789",
             "product_id": "P456",

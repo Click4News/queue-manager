@@ -8,7 +8,7 @@ on:
 env:
   PROJECT_ID: 'bda-project-server-455505'
   REGION: 'us-central1'
-  SERVICE: 'bda-sqs-server'
+  SERVICE: 'sqs-backend'
   GAR_NAME: 'cloud-run-source-deploy'
 
 jobs:

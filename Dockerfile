@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Copy requirements first to leverage Docker cache
 COPY requirements.txt .
-COPY new.py sample_read constants api_call sqs_producer .
+COPY news.py sample_read.py constants.py api_call.py sqs_producer.py .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code

@@ -6,3 +6,6 @@ old/
 pyvenv.cfg
 __pycache__/
 constants.py
+not_working.py
+service-account-secrets.json
+essay2.md

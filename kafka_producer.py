@@ -47,6 +47,7 @@ def publish_messages(sent_data):
         
         # Publish messages
         for data in sent_data:
+            print(data)
             # Key is optional - using id as the key in this example
             key = str(data["id"]).encode('utf-8')
             

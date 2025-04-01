@@ -9,7 +9,7 @@ env:
   PROJECT_ID: 'bda-project-server-455505'
   REGION: 'us-central1'
   SERVICE: 'bda-sqs-server'
-  GAR_NAME: 'gh-demo'
+  GAR_NAME: 'cloud-run-source-deploy'
 
 jobs:
   deploy:

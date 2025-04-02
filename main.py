@@ -1,11 +1,11 @@
 from typing import Union
 
 from fastapi import FastAPI
-from fastapi.encoders import jsonable_encoder
+# from fastapi.encoders import jsonable_encoder
 
-from news import store_news, fetch_and_store_news
+# from news import store_news, fetch_and_store_news
 
-from sample_read import read
+# from sample_read import read
 # from pymongo import MongoClient
 # from constants import MONGO_ATLAS_URI
 from api_call import make_api_call

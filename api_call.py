@@ -1,6 +1,9 @@
 import requests
 import json
-from constants import API_KEY
+# from constants import API_KEY
+import os
+
+API_KEY = os.environ.get('API_KEY')
 
 BASE_URL = 'https://eventregistry.org/api/v1/article/getArticles'
 

@@ -45,6 +45,8 @@ jobs:
           image: "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_NAME }}/${{ env.SERVICE }}:${{ github.sha }}"
           env_vars: |
             API_KEY=${{ secrets.API_KEY }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           
       - name: 'Show Service URL'
         run: echo "Service URL: ${{ steps.deploy.outputs.url }}"

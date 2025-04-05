@@ -47,9 +47,23 @@ def read_root():
 #     store_news(local_client, news, city, insert=False)
 #     return jsonable_encoder(news)
 
+@app.get("/test_sqs/")
+def test_queue_push():
+    try: 
+        push_message_to_sqs('test-queue', 'Test message')
+        return {"Message": "Worked"}
+    except Exception as e:
+        error_message = f"Failed to push message to SQS: {str(e)}"
+        return {"Error": str(e), "Details": error_message}
+
+
 @app.get("/just_get_news/{city}")
 def get_city_news(city: str):
-    news = make_api_call(city)
+    try: 
+        news = make_api_call(city)
+    except Exception as e:
+        print("News API call error.")
+        return {"Error": e}
     print('Articles reveived in type: ', type(news))
     articles = news['articles']['results']
     location = geolocator.geocode(f"{city}")
@@ -69,4 +83,5 @@ def get_city_news(city: str):
         article['id'] = str(ObjectId())
         article['geoJson'] = geoJson
         push_message_to_sqs('test-queue', article)
+        break
     return news

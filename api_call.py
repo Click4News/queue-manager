@@ -24,3 +24,7 @@ def make_api_call(which_city: str):
     response = requests.get(BASE_URL, params=params)
     response.raise_for_status()
     return response.json()
+
+if __name__ == "__main__":
+    news = make_api_call('Denver')
+    print(news)

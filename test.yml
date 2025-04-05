@@ -3,7 +3,7 @@ name: 'Build and Deploy to Cloud Run'
 on:
   push:
     branches:
-      - main  # Or whichever branch you deploy from
+      - main  
 
 env:
   PROJECT_ID: 'bda-project-server-455505'

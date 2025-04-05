@@ -50,6 +50,7 @@ def read_root():
 @app.get("/just_get_news/{city}")
 def get_city_news(city: str):
     news = make_api_call(city)
+    print('Articles reveived in type: ', type(news))
     articles = news['articles']['results']
     location = geolocator.geocode(f"{city}")
     lat, long = location.latitude, location.longitude
@@ -67,11 +68,5 @@ def get_city_news(city: str):
         article['city'] = city
         article['id'] = str(ObjectId())
         article['geoJson'] = geoJson
-    print(articles[0])
-    attributes = {
-        "priority": "high",
-        "source": "inventory_system",
-        "timestamp": "2025-03-18T12:00:00Z"
-    }
-    push_message_to_sqs('test-queue', articles)
+        push_message_to_sqs('test-queue', article)
     return news

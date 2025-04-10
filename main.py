@@ -85,4 +85,5 @@ def get_city_news(city: str, num: int = 100):
         push_message_to_sqs('test-queue', article)
     print('Number of articles: ', len(news['articles']['results']))
     return news
+
     # return {'num of articles': len(news['articles']['results']),'news': news}

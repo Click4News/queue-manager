@@ -57,14 +57,14 @@ def test_queue_push():
         return {"Error": str(e), "Details": error_message}
 
 
-@app.get("/just_get_news/{city}")
-def get_city_news(city: str):
+@app.get("/just_get_news/{city}/{num}")
+def get_city_news(city: str, num: int = 100):
     try: 
-        news = make_api_call(city)
+        news = make_api_call(city, num)
     except Exception as e:
         print("News API call error.")
         return {"Error": e}
-    print('Articles reveived in type: ', type(news))
+    # print('Articles reveived in type: ', type(news))
     articles = news['articles']['results']
     location = geolocator.geocode(f"{city}")
     lat, long = location.latitude, location.longitude
@@ -83,5 +83,6 @@ def get_city_news(city: str):
         article['id'] = str(ObjectId())
         article['geoJson'] = geoJson
         push_message_to_sqs('test-queue', article)
-        break
+    print('Number of articles: ', len(news['articles']['results']))
     return news
+    # return {'num of articles': len(news['articles']['results']),'news': news}

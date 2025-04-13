@@ -16,27 +16,24 @@ locations = pre_fetch_locationns()
 
 location_names = locations.keys()
 
-# Initialize scheduler
 scheduler = BackgroundScheduler()
 
-# Define lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
-    # scheduler.start()
-    # print("Scheduler started")
+    scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
+    scheduler.start()
+    print("Scheduler started")
 
-    # scheduled_job()
+    scheduled_job()
     
     yield  # This is where the app runs
     
 
-    # scheduler.shutdown()
-    # print("Scheduler shut down")
+    scheduler.shutdown()
+    print("Scheduler shut down")
 
 app = FastAPI(lifespan=lifespan)
 
-# List of cities to query
 import threading
 
 def process_city(city: str, num_articles: int = 100):
@@ -102,12 +99,9 @@ def scheduled_job():
     total_articles = 0
     failed_cities = []
     
-    # Set max_workers to control concurrency - adjust based on your needs
     with ThreadPoolExecutor(max_workers=10) as executor:
-        # Submit all cities for processing
         future_to_city = {executor.submit(process_city, city): city for city in CITIES}
         
-        # Collect results as they complete
         for future in concurrent.futures.as_completed(future_to_city):
             city = future_to_city[future]
             try:
@@ -170,7 +164,6 @@ def get_city_news(city: str, num: int = 100):
         print(f"Error in processing articles for {city}: {str(e)}")
         return {"Error": str(e), "articles": news.get('articles', {}).get('results', [])}
 
-# Add a management endpoint to manually trigger the job
 @app.post("/trigger_job/")
 def trigger_job():
     try:
@@ -180,7 +173,6 @@ def trigger_job():
         print(f"Error triggering job manually: {str(e)}")
         return {"status": "error", "message": str(e)}
 
-# Add an endpoint to check scheduler status
 @app.get("/scheduler_status/")
 def scheduler_status():
     job = scheduler.get_job('news_fetch_job')

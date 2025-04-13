@@ -1,51 +1,129 @@
 from typing import Union
-
 from fastapi import FastAPI
-# from fastapi.encoders import jsonable_encoder
-
-# from news import store_news, fetch_and_store_news
-
-# from sample_read import read
-# from pymongo import MongoClient
-# from constants import MONGO_ATLAS_URI
+from contextlib import asynccontextmanager
 from api_call import make_api_call
 from bson import ObjectId
-# from kafka_producer import *
 from sqs_producer import *
-
 from geopy.geocoders import Nominatim 
+from apscheduler.schedulers.background import BackgroundScheduler
+import time
+from datetime import datetime
+from cities import CITIES
 
-geolocator = Nominatim(user_agent="Click4News")
+from locations import pre_fetch_locationns
 
-# atlas_client = MongoClient(MONGO_ATLAS_URI)
-# local_client = MongoClient('localhost', 27017)
+locations = pre_fetch_locationns()
 
-app = FastAPI()
+location_names = locations.keys()
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
+
+# Define lifespan context manager
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
+    # scheduler.start()
+    # print("Scheduler started")
+
+    # scheduled_job()
+    
+    yield  # This is where the app runs
+    
+
+    # scheduler.shutdown()
+    # print("Scheduler shut down")
+
+app = FastAPI(lifespan=lifespan)
+
+# List of cities to query
+import threading
+
+def process_city(city: str, num_articles: int = 100):
+    """Process a single city's news and push to SQS queue"""
+    try:
+        print(f"Fetching news for {city}")
+        news = make_api_call(city, num_articles)
+        articles = news['articles']['results']
+        
+        # Get location data
+        try:
+            location = locations[city]
+            lat, long = location[0], location[1]
+            geoJson = {
+                "type": "Location",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [lat, long]
+                },
+                "properties": {
+                    "name": f"{city}"
+                }
+            }
+        except Exception as loc_error:
+            print(f"Geolocation error for {city}: {str(loc_error)}")
+            geoJson = {
+                "type": "Location",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [0, 0]  # Default coordinates if geocoding fails
+                },
+                "properties": {
+                    "name": f"{city}"
+                }
+            }
+        
+        # Process and push each article
+        success_count = 0
+        for article in articles:
+            try:
+                article['city'] = city
+                article['id'] = str(ObjectId())
+                article['geoJson'] = geoJson
+                article['fetch_timestamp'] = datetime.now().isoformat()
+                push_message_to_sqs('test-queue', article)
+                print(f"Thread {threading.get_ident()}: processed for {article['city']} with id: {article['id']}")
+                success_count += 1
+            except Exception as article_error:
+                print(f"Error processing article for {city}: {str(article_error)}")
+        
+        print(f"Successfully pushed {success_count}/{len(articles)} articles for {city}")
+        return success_count
+    except Exception as e:
+        print(f"Failed to process {city}: {str(e)}")
+        return 0
+
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
+
+def scheduled_job():
+    """Job to run every 30 minutes, parallelized with ThreadPoolExecutor"""
+    print(f"Starting scheduled job at {datetime.now()}")
+    total_articles = 0
+    failed_cities = []
+    
+    # Set max_workers to control concurrency - adjust based on your needs
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # Submit all cities for processing
+        future_to_city = {executor.submit(process_city, city): city for city in CITIES}
+        
+        # Collect results as they complete
+        for future in concurrent.futures.as_completed(future_to_city):
+            city = future_to_city[future]
+            try:
+                articles_processed = future.result()
+                total_articles += articles_processed
+            except Exception as e:
+                print(f"Error processing city {city}: {str(e)}")
+                failed_cities.append(city)
+    
+    print(f"Scheduled job completed. Processed {total_articles} articles.")
+    if failed_cities:
+        print(f"Failed to process these cities: {', '.join(failed_cities)}")
 
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
-
-
-# @app.get("/items/{item_id}")
-# def read_item(item_id: int, q: Union[str, None] = None):
-#     return {"item_id": item_id, "q": q}
-
-# @app.get("/atlas_city_read/{city}")
-# def get_city_news(city: str):
-#     result = read(mongo_client = atlas_client, which_city=city)
-#     return result
-
-# @app.get("/local_city_read/{city}")
-# def get_city_news(city: str):
-#     result = read(mongo_client = local_client, which_city=city)
-#     return result
-
-# @app.get("/get_and_store_news/{city}")
-# def get_city_news(city: str):
-#     news = make_api_call(city)
-#     store_news(local_client, news, city, insert=False)
-#     return jsonable_encoder(news)
 
 @app.get("/test_sqs/")
 def test_queue_push():
@@ -56,34 +134,59 @@ def test_queue_push():
         error_message = f"Failed to push message to SQS: {str(e)}"
         return {"Error": str(e), "Details": error_message}
 
-
 @app.get("/just_get_news/{city}/{num}")
 def get_city_news(city: str, num: int = 100):
     try: 
         news = make_api_call(city, num)
     except Exception as e:
-        print("News API call error.")
-        return {"Error": e}
-    # print('Articles reveived in type: ', type(news))
+        print(f"News API call error for {city}: {str(e)}")
+        return {"Error": str(e)}
+        
     articles = news['articles']['results']
-    location = geolocator.geocode(f"{city}")
-    lat, long = location.latitude, location.longitude
-    geoJson = {
-        "type": "Location",
-        "geometry" : {
-            "type": "Point",
-            "coordinates": [lat, long]
-        },
-        "properties": {
-            "name": f"{city}"
+    try:
+        # location = geolocator.geocode(f"{city}")
+        location = locations[city]
+        lat, long = location[0], location[1]
+        geoJson = {
+            "type": "Location",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [lat, long]
+            },
+            "properties": {
+                "name": f"{city}"
+            }
         }
-    }
-    for article in articles:
-        article['city'] = city
-        article['id'] = str(ObjectId())
-        article['geoJson'] = geoJson
-        push_message_to_sqs('test-queue', article)
-    print('Number of articles: ', len(news['articles']['results']))
-    return news
+        
+        for article in articles:
+            article['city'] = city
+            article['id'] = str(ObjectId())
+            article['geoJson'] = geoJson
+            push_message_to_sqs('test-queue', article)
+        
+        print(f'Processed {len(articles)} articles for {city} via API endpoint')
+        return news
+    except Exception as e:
+        print(f"Error in processing articles for {city}: {str(e)}")
+        return {"Error": str(e), "articles": news.get('articles', {}).get('results', [])}
 
-    # return {'num of articles': len(news['articles']['results']),'news': news}
+# Add a management endpoint to manually trigger the job
+@app.post("/trigger_job/")
+def trigger_job():
+    try:
+        scheduled_job()
+        return {"status": "success", "message": "Job triggered successfully"}
+    except Exception as e:
+        print(f"Error triggering job manually: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+# Add an endpoint to check scheduler status
+@app.get("/scheduler_status/")
+def scheduler_status():
+    job = scheduler.get_job('news_fetch_job')
+    if job:
+        return {
+            "status": "running" if scheduler.running else "stopped",
+            "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None
+        }
+    return {"status": "job not found"}

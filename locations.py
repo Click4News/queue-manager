@@ -4,7 +4,9 @@ import os
 from cities import CITIES
 from geopy.geocoders import Nominatim
 import requests
-from constants import mapbox_api_key
+# from constants import mapbox_api_key
+
+mapbox_api_key = os.environ.get('MAPBOX_API_KEY')
 
 
 def pre_fetch_locationns():

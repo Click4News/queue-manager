@@ -20,17 +20,17 @@ scheduler = BackgroundScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
-    # scheduler.start()
-    # print("Scheduler started")
+    scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
+    scheduler.start()
+    print("Scheduler started")
 
-    # scheduled_job()
+    scheduled_job()
     
     yield  # This is where the app runs
     
 
-    # scheduler.shutdown()
-    # print("Scheduler shut down")
+    scheduler.shutdown()
+    print("Scheduler shut down")
 
 app = FastAPI(lifespan=lifespan)
 

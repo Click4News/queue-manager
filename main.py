@@ -127,6 +127,11 @@ def test_queue_push():
     except Exception as e:
         error_message = f"Failed to push message to SQS: {str(e)}"
         return {"Error": str(e), "Details": error_message}
+    
+
+@app.get("/get_city_locations/{city}/{num}")
+def get_city_loc(city: str, num: int = 5):
+    return {"city": city, "number of articles": num, "location": locations[city]}
 
 @app.get("/just_get_news/{city}/{num}")
 def get_city_news(city: str, num: int = 100):

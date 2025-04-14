@@ -8,10 +8,12 @@ import requests
 
 mapbox_api_key = os.environ.get('MAPBOX_API_KEY')
 
+locations_file_name = "locations_new.json"
+
 
 def pre_fetch_locationns():
-    if os.path.exists("locations_new.json"):
-        with open("locations.json", "r") as f:
+    if os.path.exists(locations_file_name):
+        with open(locations_file_name, "r") as f:
             data = json.load(f)
             f.close()
             return data
@@ -32,7 +34,7 @@ def pre_fetch_locationns():
             failed_cities.append(city)
             time.sleep(1.1)
     
-    with open("locations_new.json", 'w') as f:
+    with open(locations_file_name, 'w') as f:
         json.dump(city_coordinates, f, indent=2)
     
     f.close()

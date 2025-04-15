@@ -27,6 +27,6 @@ def make_api_call(which_city: str, num_articles: int = 100):
     return response.json()
 
 if __name__ == "__main__":
-    news = make_api_call('Austin', 9)
+    news = make_api_call('Denver', 9)
     print(json.dumps(news, indent=4))
     print(len(news['articles']['results']))

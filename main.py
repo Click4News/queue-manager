@@ -200,7 +200,7 @@ def scheduler_status():
     return {"status": "job not found"}
 
 
-@app.post("/start-scheduled-job")
+@app.get("/start-scheduled-job")
 async def start_scheduled_job():
     """Start running the job on a schedule"""
     try:
@@ -216,7 +216,7 @@ async def start_scheduled_job():
         raise HTTPException(status_code=500, detail=f"Failed to schedule job: {str(e)}")
 
 # Endpoint to stop the scheduled job
-@app.post("/stop-scheduled-job")
+@app.get("/stop-scheduled-job")
 async def stop_scheduled_job():
     """Stop the scheduled job"""
     try:

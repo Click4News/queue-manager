@@ -119,6 +119,10 @@ def scheduled_job():
 def read_root():
     return {"Hello": "World"}
 
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
 @app.get("/test_sqs/")
 def test_queue_push():
     try: 

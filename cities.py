@@ -1,4 +1,4 @@
-CITIES_1 = [
+CITIES = [
     "Atlanta",
     "Austin",
     "Baltimore",
@@ -101,7 +101,7 @@ CITIES_1 = [
     "Providence"
 ]
 
-CITIES = [
+CITIES_SAMPLE = [
     "Atlanta",
     "Austin",
     "Boston"

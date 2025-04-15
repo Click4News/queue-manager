@@ -2,7 +2,6 @@ import json
 import time
 import os
 from cities import CITIES_DICT
-from geopy.geocoders import Nominatim
 import requests
 # from constants import mapbox_api_key
 
@@ -41,6 +40,12 @@ def pre_fetch_locationns():
 
     return city_coordinates
 
+def test_api_available(city, state):
+    response = requests.get(f'https://api.mapbox.com/search/geocode/v6/forward?q={city}%2C%20{state}&proximity=ip&access_token={mapbox_api_key}')
+    print(response.status_code)
+
+
 if __name__ == "__main__":
+    test_api_available(city="Denver", state="Colorado")
     points = pre_fetch_locationns()
     print(points)

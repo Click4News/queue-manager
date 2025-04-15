@@ -1,5 +1,5 @@
 from typing import Union
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from api_call import make_api_call
 from bson import ObjectId
@@ -20,11 +20,11 @@ scheduler = BackgroundScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
+    # scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
     scheduler.start()
     print("Scheduler started")
 
-    scheduled_job()
+    # scheduled_job()
     
     yield  # This is where the app runs
     
@@ -117,7 +117,14 @@ def scheduled_job():
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {
+        "What is the Scheduled Job?": "Every 30 minutes, news for all 100 cities are queried from the NewsAPI (on multiple threads) and whatever is found is pushed to the SQS queue.",
+        "/health":"Health check endpoint",
+        "/test_sqs":"Tests if SQS queue is up and messages can be pushed",
+        "/sheduler_status": "Status of the scheduler job (if any)",
+        "/start-scheduler-job" : "Starts the scheduled job",
+        "/stop-scheduler-job" : "Stops the scheduled job"
+    }
 
 @app.get("/health")
 def health_check():
@@ -191,3 +198,30 @@ def scheduler_status():
             "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None
         }
     return {"status": "job not found"}
+
+
+@app.post("/start-scheduled-job")
+async def start_scheduled_job():
+    """Start running the job on a schedule"""
+    try:
+        # Check if the job already exists
+        job = scheduler.get_job('news_fetch_job')
+        if job:
+            return {"status": "warning", "message": "Job is already scheduled"}
+        
+        # Add the job to the scheduler
+        scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
+        return {"status": "success", "message": "Job scheduled successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to schedule job: {str(e)}")
+
+# Endpoint to stop the scheduled job
+@app.post("/stop-scheduled-job")
+async def stop_scheduled_job():
+    """Stop the scheduled job"""
+    try:
+        # Remove the job from the scheduler
+        scheduler.remove_job('news_fetch_job')
+        return {"status": "success", "message": "Job stopped successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop job: {str(e)}")

@@ -80,7 +80,8 @@ def push_message_to_sqs(queue_name, message_body, attributes=None):
                 QueueUrl=queue_url,
                 MessageBody=message_body
             )
-        logger.info(f"Message sent! Message ID: {response['MessageId']} body={message_body}")
+
+        logger.info(f"-----------Message sent! Message ID: {response['MessageId']} body={message_body}------------")
         return response
     
     except ClientError as e:

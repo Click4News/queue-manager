@@ -79,7 +79,7 @@ def process_city(city: str, num_articles: int = 100):
                 article['geoJson'] = geoJson
                 article['fetch_timestamp'] = datetime.now().isoformat()
                 push_message_to_sqs('test-queue', article)
-                print(f"Thread {threading.get_ident()}: processed for {article['city']} with id: {article['id']}")
+                print(f"----------Thread {threading.get_ident()}: processed for {article['city']} with article id: {article['id']}------------")
                 success_count += 1
             except Exception as article_error:
                 print(f"Error processing article for {city}: {str(article_error)}")

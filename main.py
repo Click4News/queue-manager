@@ -241,7 +241,7 @@ async def start_scheduled_job():
         logger.info("Scheduled job started - will run every 30 minutes")
         
         # Optionally, run the job immediately
-        # scheduled_job()
+        scheduled_job()
         # If you want to run immediately, uncomment the line above
         
         return {"status": "success", "message": "Job scheduled successfully"}

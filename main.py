@@ -1,131 +1,173 @@
-from typing import Union
+from typing import Union, List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from api_call import make_api_call
 from bson import ObjectId
-from sqs_producer import *
-from geopy.geocoders import Nominatim 
+from sqs_producer import push_message_to_sqs
 from apscheduler.schedulers.background import BackgroundScheduler
 import time
 from datetime import datetime
 from cities import CITIES
-
 from locations import pre_fetch_locationns
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Pre-fetch locations
 locations = pre_fetch_locationns()
-
 location_names = locations.keys()
 
+# Initialize scheduler but don't schedule any jobs yet
 scheduler = BackgroundScheduler()
 
-results = {}
+# Initialize results dictionary for tracking article counts by city
+# This will be populated when the job runs
+results = {city: 0 for city in CITIES}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
+    """Application lifespan manager to handle startup and shutdown events."""
+    # Start the scheduler but don't schedule any jobs yet
+    # Jobs will only be added when the /start-scheduler-job endpoint is called
     scheduler.start()
-    print("Scheduler started")
-
-    # scheduled_job()
+    logger.info("Scheduler started (no jobs scheduled)")
     
     yield  # This is where the app runs
     
-
     scheduler.shutdown()
-    print("Scheduler shut down")
+    logger.info("Scheduler shut down")
 
 app = FastAPI(lifespan=lifespan)
 
-import threading
-
-def process_city(city: str, num_articles: int = 100):
-    """Process a single city's news and push to SQS queue"""
+def get_location_data(city: str) -> Dict:
+    """Get location data for a city and format as GeoJSON."""
     try:
-        print(f"Fetching news for {city}")
+        location = locations[city]
+        lat, long = location[0], location[1]
+        return {
+            "type": "Location",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [lat, long]
+            },
+            "properties": {
+                "name": f"{city}"
+            }
+        }
+    except Exception as loc_error:
+        logger.error(f"Geolocation error for {city}: {str(loc_error)}")
+        return {
+            "type": "Location",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [0, 0]  # Default coordinates if geocoding fails
+            },
+            "properties": {
+                "name": f"{city}"
+            }
+        }
+
+def prepare_article(article: Dict, city: str, geo_json: Dict) -> Dict:
+    """Prepare an article with additional metadata."""
+    article['city'] = city
+    article['id'] = str(ObjectId())
+    article['geoJson'] = geo_json
+    article['fetch_timestamp'] = datetime.now().isoformat()
+    article['type'] = "CREATE"
+    return article
+
+def push_article_to_queue(article: Dict) -> bool:
+    """Push a single article to SQS queue."""
+    try:
+        push_message_to_sqs('test-queue', article)
+        logger.debug(f"Thread {threading.get_ident()}: pushed article {article['id']}")
+        return True
+    except Exception as e:
+        logger.error(f"Error pushing article to queue: {str(e)}")
+        return False
+
+def fetch_city_news(city: str, num_articles: int = 100) -> List[Dict]:
+    """Fetch news for a city and prepare articles with metadata."""
+    try:
+        logger.info(f"Fetching news for {city}")
         news = make_api_call(city, num_articles)
         articles = news['articles']['results']
         
         # Get location data
-        try:
-            location = locations[city]
-            lat, long = location[0], location[1]
-            geoJson = {
-                "type": "Location",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [lat, long]
-                },
-                "properties": {
-                    "name": f"{city}"
-                }
-            }
-        except Exception as loc_error:
-            print(f"Geolocation error for {city}: {str(loc_error)}")
-            geoJson = {
-                "type": "Location",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [0, 0]  # Default coordinates if geocoding fails
-                },
-                "properties": {
-                    "name": f"{city}"
-                }
-            }
+        geo_json = get_location_data(city)
         
-        # Process and push each article
-        success_count = 0
-        for article in articles:
-            try:
-                article['city'] = city
-                article['id'] = str(ObjectId())
-                article['geoJson'] = geoJson
-                article['fetch_timestamp'] = datetime.now().isoformat()
-                # push_message_to_sqs('test-queue', article)
-                success_count += 1
-            except Exception as article_error:
-                print(f"Error processing article for {city}: {str(article_error)}")
-        push_message_to_sqs('test-queue', articles)
-        print(f"----------Thread {threading.get_ident()}: processed for {city} number of articles = {len(articles)}------------")
-        # print(f"Successfully pushed {success_count}/{len(articles)} articles for {city}")
-        results[city] += success_count
-        return success_count
+        # Prepare articles with metadata
+        prepared_articles = [
+            prepare_article(article, city, geo_json) 
+            for article in articles
+        ]
+        
+        logger.info(f"Fetched and prepared {len(prepared_articles)} articles for {city}")
+        return prepared_articles
     except Exception as e:
-        print(f"Failed to process {city}: {str(e)}")
-        return 0
-
-from concurrent.futures import ThreadPoolExecutor
-import concurrent.futures
+        logger.error(f"Failed to fetch news for {city}: {str(e)}")
+        return []
 
 def scheduled_job():
-    """Job to run every 30 minutes, parallelized with ThreadPoolExecutor"""
-    print(f"Starting scheduled job at {datetime.now()}")
-    total_articles = 0
+    """Job to run on schedule - fetches news for all cities then pushes articles in parallel."""
+    start_time = datetime.now()
+    logger.info(f"Starting scheduled job at {start_time}")
+    
+    # Step 1: Fetch all articles from all cities
+    all_articles = []
     failed_cities = []
     
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_city = {executor.submit(process_city, city): city for city in CITIES}
-        
-        for future in concurrent.futures.as_completed(future_to_city):
-            city = future_to_city[future]
-            try:
-                articles_processed = future.result()
-                total_articles += articles_processed
-            except Exception as e:
-                print(f"Error processing city {city}: {str(e)}")
-                failed_cities.append(city)
+    for city in CITIES:
+        try:
+            city_articles = fetch_city_news(city)
+            all_articles.extend(city_articles)
+            results[city] = len(city_articles)
+        except Exception as e:
+            logger.error(f"Error fetching news for {city}: {str(e)}")
+            failed_cities.append(city)
+            results[city] = 0
     
-    print(f"Scheduled job completed. Processed {total_articles} articles.")
+    # Step 2: Push articles to SQS in parallel using ThreadPoolExecutor
+    success_count = 0
+    logger.info(f"Pushing {len(all_articles)} articles to SQS queue using multiple threads")
+    
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        future_to_article = {
+            executor.submit(push_article_to_queue, article): article 
+            for article in all_articles
+        }
+        
+        for future in concurrent.futures.as_completed(future_to_article):
+            article = future_to_article[future]
+            try:
+                if future.result():
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Error pushing article to queue: {str(e)}")
+    
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+    logger.info(f"Scheduled job completed in {duration:.2f} seconds.")
+    logger.info(f"Successfully pushed {success_count}/{len(all_articles)} articles to SQS.")
+    
     if failed_cities:
-        print(f"Failed to process these cities: {', '.join(failed_cities)}")
+        logger.info(f"Failed to process these cities: {', '.join(failed_cities)}")
 
 @app.get("/")
 def read_root():
     return {
-        "What is the Scheduled Job?": "Every 30 minutes, news for all 100 cities are queried from the NewsAPI (on multiple threads) and whatever is found is pushed to the SQS queue.",
-        "/health":"Health check endpoint",
-        "/test_sqs":"Tests if SQS queue is up and messages can be pushed",
+        "What is the Scheduled Job?": "Every 30 minutes, news for all cities are queried from the NewsAPI, then all articles are pushed to the SQS queue using multiple threads.",
+        "/health": "Health check endpoint",
+        "/test_sqs": "Tests if SQS queue is up and messages can be pushed",
         "/scheduler_status": "Status of the scheduler job (if any)",
-        "/start-scheduler-job" : "Starts the scheduled job",
-        "/stop-scheduler-job" : "Stops the scheduled job"
+        "/start-scheduler-job": "Starts the scheduled job",
+        "/stop-scheduler-job": "Stops the scheduled job"
     }
 
 @app.get("/health")
@@ -142,8 +184,9 @@ def test_queue_push():
         return {"Error": str(e), "Details": error_message}
     
 @app.get("/user_news")
-def push_user_news(news: json):
-    push_message_to_sqs(news)
+def push_user_news(news: dict):
+    push_message_to_sqs('test-queue', news)
+    return {"status": "success"}
 
 @app.get("/get_city_locations/{city}/{num}")
 def get_city_loc(city: str, num: int = 5):
@@ -151,39 +194,18 @@ def get_city_loc(city: str, num: int = 5):
 
 @app.get("/just_get_news/{city}/{num}")
 def get_city_news(city: str, num: int = 100):
-    try: 
-        news = make_api_call(city, num)
-    except Exception as e:
-        print(f"News API call error for {city}: {str(e)}")
-        return {"Error": str(e)}
-        
-    articles = news['articles']['results']
     try:
-        # location = geolocator.geocode(f"{city}")
-        location = locations[city]
-        lat, long = location[0], location[1]
-        geoJson = {
-            "type": "Location",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [lat, long]
-            },
-            "properties": {
-                "name": f"{city}"
-            }
-        }
+        articles = fetch_city_news(city, num)
         
-        for article in articles:
-            article['city'] = city
-            article['id'] = str(ObjectId())
-            article['geoJson'] = geoJson
-        push_message_to_sqs('test-queue', articles)
+        # Push articles to SQS in parallel
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            list(executor.map(push_article_to_queue, articles))
         
-        print(f'Processed {len(articles)} articles for {city} via API endpoint')
-        return news
+        logger.info(f'Processed {len(articles)} articles for {city} via API endpoint')
+        return {"status": "success", "article_count": len(articles)}
     except Exception as e:
-        print(f"Error in processing articles for {city}: {str(e)}")
-        return {"Error": str(e), "articles": news.get('articles', {}).get('results', [])}
+        logger.error(f"Error in processing articles for {city}: {str(e)}")
+        return {"Error": str(e)}
 
 @app.post("/trigger_job/")
 def trigger_job():
@@ -191,7 +213,7 @@ def trigger_job():
         scheduled_job()
         return {"status": "success", "message": "Job triggered successfully"}
     except Exception as e:
-        print(f"Error triggering job manually: {str(e)}")
+        logger.error(f"Error triggering job manually: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 @app.get("/scheduler_status/")
@@ -205,8 +227,7 @@ def scheduler_status():
         }
     return {"status": "job not found"}
 
-
-@app.get("/start-scheduled-job")
+@app.get("/start-scheduler-job")
 async def start_scheduled_job():
     """Start running the job on a schedule"""
     try:
@@ -217,12 +238,17 @@ async def start_scheduled_job():
         
         # Add the job to the scheduler
         scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
+        logger.info("Scheduled job started - will run every 30 minutes")
+        
+        # Optionally, run the job immediately
+        # scheduled_job()
+        # If you want to run immediately, uncomment the line above
+        
         return {"status": "success", "message": "Job scheduled successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to schedule job: {str(e)}")
 
-# Endpoint to stop the scheduled job
-@app.get("/stop-scheduled-job")
+@app.get("/stop-scheduler-job")
 async def stop_scheduled_job():
     """Stop the scheduled job"""
     try:

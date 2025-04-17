@@ -18,6 +18,7 @@ location_names = locations.keys()
 
 scheduler = BackgroundScheduler()
 
+results = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
@@ -78,13 +79,14 @@ def process_city(city: str, num_articles: int = 100):
                 article['id'] = str(ObjectId())
                 article['geoJson'] = geoJson
                 article['fetch_timestamp'] = datetime.now().isoformat()
-                push_message_to_sqs('test-queue', article)
-                print(f"----------Thread {threading.get_ident()}: processed for {article['city']} with article id: {article['id']}------------")
+                # push_message_to_sqs('test-queue', article)
                 success_count += 1
             except Exception as article_error:
                 print(f"Error processing article for {city}: {str(article_error)}")
-        
-        print(f"Successfully pushed {success_count}/{len(articles)} articles for {city}")
+        push_message_to_sqs('test-queue', articles)
+        print(f"----------Thread {threading.get_ident()}: processed for {city} number of articles = {len(articles)}------------")
+        # print(f"Successfully pushed {success_count}/{len(articles)} articles for {city}")
+        results[city] += success_count
         return success_count
     except Exception as e:
         print(f"Failed to process {city}: {str(e)}")
@@ -121,7 +123,7 @@ def read_root():
         "What is the Scheduled Job?": "Every 30 minutes, news for all 100 cities are queried from the NewsAPI (on multiple threads) and whatever is found is pushed to the SQS queue.",
         "/health":"Health check endpoint",
         "/test_sqs":"Tests if SQS queue is up and messages can be pushed",
-        "/sheduler_status": "Status of the scheduler job (if any)",
+        "/scheduler_status": "Status of the scheduler job (if any)",
         "/start-scheduler-job" : "Starts the scheduled job",
         "/stop-scheduler-job" : "Stops the scheduled job"
     }
@@ -139,6 +141,9 @@ def test_queue_push():
         error_message = f"Failed to push message to SQS: {str(e)}"
         return {"Error": str(e), "Details": error_message}
     
+@app.get("/user_news")
+def push_user_news(news: json):
+    push_message_to_sqs(news)
 
 @app.get("/get_city_locations/{city}/{num}")
 def get_city_loc(city: str, num: int = 5):
@@ -172,7 +177,7 @@ def get_city_news(city: str, num: int = 100):
             article['city'] = city
             article['id'] = str(ObjectId())
             article['geoJson'] = geoJson
-            push_message_to_sqs('test-queue', article)
+        push_message_to_sqs('test-queue', articles)
         
         print(f'Processed {len(articles)} articles for {city} via API endpoint')
         return news
@@ -195,7 +200,8 @@ def scheduler_status():
     if job:
         return {
             "status": "running" if scheduler.running else "stopped",
-            "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None
+            "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+            "results": results
         }
     return {"status": "job not found"}
 

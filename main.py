@@ -13,6 +13,8 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import logging
+from typing import Dict, Any
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -187,7 +189,7 @@ def test_queue_push():
         return {"Error": str(e), "Details": error_message}
     
 @app.post("/user_news")
-def push_user_news(news: dict = Body(...)):
+def push_user_news(news: Dict[str, Any] = Body()):
     push_message_to_sqs('test-queue', news)
     return {"status": "success"}
 

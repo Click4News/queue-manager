@@ -140,6 +140,8 @@ def consume_messages(queue_name, max_messages=10, wait_time=20, visibility_timeo
                         logger.info(f"Deleted message {message.get('MessageId')}")
                     else:
                         logger.warning(f"Failed to delete message {message.get('MessageId')}")
+
+            return
         
         except KeyboardInterrupt:
             logger.info("Stopping consumer...")

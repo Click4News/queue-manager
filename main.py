@@ -116,48 +116,51 @@ def fetch_city_news(city: str, num_articles: int = 100) -> List[Dict]:
 
 def scheduled_job():
     """Job to run on schedule - fetches news for all cities then pushes articles in parallel."""
-    start_time = datetime.now()
-    logger.info(f"Starting scheduled job at {start_time}")
-    
-    # Step 1: Fetch all articles from all cities
-    all_articles = []
-    failed_cities = []
-    
-    for city in CITIES:
-        try:
-            city_articles = fetch_city_news(city)
-            all_articles.extend(city_articles)
-            results[city] = len(city_articles)
-        except Exception as e:
-            logger.error(f"Error fetching news for {city}: {str(e)}")
-            failed_cities.append(city)
-            results[city] = 0
-    
-    # Step 2: Push articles to SQS in parallel using ThreadPoolExecutor
-    success_count = 0
-    logger.info(f"Pushing {len(all_articles)} articles to SQS queue using multiple threads")
-    
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        future_to_article = {
-            executor.submit(push_article_to_queue, article): article 
-            for article in all_articles
-        }
+    try:
+        start_time = datetime.now()
+        logger.info(f"Starting scheduled job at {start_time}")
         
-        for future in concurrent.futures.as_completed(future_to_article):
-            article = future_to_article[future]
+        # Step 1: Fetch all articles from all cities
+        all_articles = []
+        failed_cities = []
+        
+        for city in CITIES:
             try:
-                if future.result():
-                    success_count += 1
+                city_articles = fetch_city_news(city)
+                all_articles.extend(city_articles)
+                results[city] = len(city_articles)
             except Exception as e:
-                logger.error(f"Error pushing article to queue: {str(e)}")
-    
-    end_time = datetime.now()
-    duration = (end_time - start_time).total_seconds()
-    logger.info(f"Scheduled job completed in {duration:.2f} seconds.")
-    logger.info(f"Successfully pushed {success_count}/{len(all_articles)} articles to SQS.")
-    
-    if failed_cities:
-        logger.info(f"Failed to process these cities: {', '.join(failed_cities)}")
+                logger.error(f"Error fetching news for {city}: {str(e)}")
+                failed_cities.append(city)
+                results[city] = 0
+        
+        # Step 2: Push articles to SQS in parallel using ThreadPoolExecutor
+        success_count = 0
+        logger.info(f"Pushing {len(all_articles)} articles to SQS queue using multiple threads")
+        
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_article = {
+                executor.submit(push_article_to_queue, article): article 
+                for article in all_articles
+            }
+            
+            for future in concurrent.futures.as_completed(future_to_article):
+                article = future_to_article[future]
+                try:
+                    if future.result():
+                        success_count += 1
+                except Exception as e:
+                    logger.error(f"Error pushing article to queue: {str(e)}")
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        logger.info(f"Scheduled job completed in {duration:.2f} seconds.")
+        logger.info(f"Successfully pushed {success_count}/{len(all_articles)} articles to SQS.")
+        
+        if failed_cities:
+            logger.info(f"Failed to process these cities: {', '.join(failed_cities)}")
+    except Exception as e:
+        logger.error(f"Unhandled exception in scheduled job: {str(e)}")
 
 @app.get("/")
 def read_root():
@@ -183,7 +186,7 @@ def test_queue_push():
         error_message = f"Failed to push message to SQS: {str(e)}"
         return {"Error": str(e), "Details": error_message}
     
-@app.get("/user_news")
+@app.post("/user_news/{news}")
 def push_user_news(news: dict):
     push_message_to_sqs('test-queue', news)
     return {"status": "success"}
@@ -237,11 +240,11 @@ async def start_scheduled_job():
             return {"status": "warning", "message": "Job is already scheduled"}
         
         # Add the job to the scheduler
-        scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job')
+        scheduler.add_job(scheduled_job, 'interval', minutes=30, id='news_fetch_job', next_run_time=datetime.now())
         logger.info("Scheduled job started - will run every 30 minutes")
         
         # Optionally, run the job immediately
-        scheduled_job()
+        # scheduled_job()
         # If you want to run immediately, uncomment the line above
         
         return {"status": "success", "message": "Job scheduled successfully"}

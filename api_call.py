@@ -3,10 +3,10 @@ import json
 # from constants import API_KEY
 import os
 from cities import CITIES_DICT
-# API_KEY = os.environ.get('API_KEY')
+API_KEY = os.environ.get('API_KEY')
 
 BASE_URL = 'https://eventregistry.org/api/v1/article/getArticles'
-API_KEY = 'f9a1b16e-6dd1-4f71-b009-f856160b2cf6'
+# API_KEY = 'f9a1b16e-6dd1-4f71-b009-f856160b2cf6'
 
 def make_api_call(which_city: str, num_articles: int = 100):
     state = CITIES_DICT[which_city]
@@ -32,7 +32,7 @@ def make_api_call(which_city: str, num_articles: int = 100):
     return response.json()
 
 if __name__ == "__main__":
-    news = make_api_call('Huntsville', 1)
+    news = make_api_call('Columbus', 100)
     print(json.dumps(news, indent=4))
     print(json.dumps(news['articles']['results']))
     print(len(news['articles']['results']))

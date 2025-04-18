@@ -1,5 +1,5 @@
 from typing import Union, List, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from contextlib import asynccontextmanager
 from api_call import make_api_call
 from bson import ObjectId
@@ -186,8 +186,8 @@ def test_queue_push():
         error_message = f"Failed to push message to SQS: {str(e)}"
         return {"Error": str(e), "Details": error_message}
     
-@app.post("/user_news/{news}")
-def push_user_news(news: dict):
+@app.post("/user_news")
+def push_user_news(news: dict = Body(...)):
     push_message_to_sqs('test-queue', news)
     return {"status": "success"}
 

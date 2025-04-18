@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import logging
 from typing import Dict, Any
+from fastapi.middleware.cors import CORSMiddleware
 
 
 # Configure logging
@@ -46,6 +47,19 @@ async def lifespan(app: FastAPI):
     logger.info("Scheduler shut down")
 
 app = FastAPI(lifespan=lifespan)
+
+origins = [
+    "http://localhost:3000",
+    "https://click4news-frontend-app.web.app"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_location_data(city: str) -> Dict:
     """Get location data for a city and format as GeoJSON."""

@@ -17,27 +17,20 @@ from typing import Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
 
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Pre-fetch locations
 locations = pre_fetch_locationns()
 location_names = locations.keys()
 
-# Initialize scheduler but don't schedule any jobs yet
 scheduler = BackgroundScheduler()
 
-# Initialize results dictionary for tracking article counts by city
-# This will be populated when the job runs
 results = {city: 0 for city in CITIES}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager to handle startup and shutdown events."""
-    # Start the scheduler but don't schedule any jobs yet
-    # Jobs will only be added when the /start-scheduler-job endpoint is called
     scheduler.start()
     logger.info("Scheduler started (no jobs scheduled)")
     

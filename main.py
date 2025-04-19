@@ -147,7 +147,7 @@ def scheduled_job():
         success_count = 0
         logger.info(f"Pushing {len(all_articles)} articles to SQS queue using multiple threads")
         
-        with ThreadPoolExecutor(max_workers=20) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_article = {
                 executor.submit(push_article_to_queue, article): article 
                 for article in all_articles

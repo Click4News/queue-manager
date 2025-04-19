@@ -17,7 +17,7 @@ from typing import Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
 
 
-logging.basicConfig(level=logging.INFO, 
+logging.basicConfig(level=logging.DEBUG, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -189,7 +189,7 @@ def health_check():
 @app.get("/test_sqs/")
 def test_queue_push():
     try: 
-        push_message_to_sqs('test-queue', 'Test message')
+        push_message_to_sqs('test-queue', 'Test message', should_i_log=True)
         return {"Message": "Worked"}
     except Exception as e:
         error_message = f"Failed to push message to SQS: {str(e)}"
@@ -197,7 +197,7 @@ def test_queue_push():
     
 @app.post("/user_news")
 def push_user_news(news: Dict[str, Any] = Body()):
-    push_message_to_sqs('test-queue', news)
+    push_message_to_sqs('test-queue', news, should_i_log=True)
     return {"status": "success"}
 
 @app.get("/get_city_locations/{city}/{num}")

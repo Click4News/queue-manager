@@ -1,3 +1,4 @@
+import random
 from typing import Union, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Body
 from contextlib import asynccontextmanager
@@ -95,30 +96,33 @@ def push_article_to_queue(article: Dict, max_retries: int = 5) -> bool:
     """Push a single article to SQS queue with exponential backoff."""
     retries = 0
     base_delay = 0.5  # Start with 500ms delay
-    max_delay = 30    # Maximum delay in seconds
+    
+    logger.debug(f"Starting push for article {article['id']} (Thread {threading.get_ident()})")
     
     while retries <= max_retries:
         try:
             if retries > 0:
                 logger.info(f"Retry attempt {retries} for article {article['id']}")
             
+            logger.debug(f"About to call push_message_to_sqs for article {article['id']}")
             push_message_to_sqs('test-queue', article)
+            logger.debug(f"Successfully pushed article {article['id']} (Thread {threading.get_ident()})")
             
-            # Small delay even after successful push to avoid overwhelming connections
+            # Small delay even after successful push
             time.sleep(0.05)
-            
-            logger.debug(f"Thread {threading.get_ident()}: pushed article {article['id']}")
             return True
             
         except Exception as e:
             retries += 1
+            logger.warning(f"Error pushing article {article['id']} (attempt {retries}/{max_retries}): {str(e)}")
+            
             if retries > max_retries:
                 logger.error(f"Failed to push article {article['id']} after {max_retries} attempts: {str(e)}")
                 return False
                 
             # Calculate exponential backoff with jitter
-            delay = min(max_delay, base_delay * (2 ** (retries - 1)) + (random.random() * 0.5))
-            logger.warning(f"Error pushing article {article['id']} to queue: {str(e)}. Retrying in {delay:.2f}s")
+            delay = base_delay * (2 ** (retries - 1)) + (random.random() * 0.5)
+            logger.warning(f"Retrying article {article['id']} in {delay:.2f}s")
             time.sleep(delay)
     
     return False
